@@ -1,7 +1,5 @@
-/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/WombastischesEloPlugin
 /Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/WombastischesEloPlugin.dll
 /Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/WombastischesEloPlugin.deps.json
-/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/WombastischesEloPlugin.runtimeconfig.json
 /Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/WombastischesEloPlugin.pdb
 /Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/CounterStrikeSharp.API.dll
 /Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/bin/Release/net8.0/publish/McMaster.NETCore.Plugins.dll

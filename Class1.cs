@@ -51,69 +51,71 @@ namespace WombastischesEloPlugin
         }
 
         private async void HandleFaceitCommand(CCSPlayerController player)
+{
+    try
+    {
+        DebugLog("Starting Faceit command processing");
+        
+        List<CCSPlayerController> allPlayers = Utilities.GetPlayers();
+        var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist && p.IsValid).ToList();
+        var team2Players = allPlayers.Where(p => p.Team == CsTeam.CounterTerrorist && p.IsValid).ToList();
+
+        DebugLog($"Found {team1Players.Count} T players and {team2Players.Count} CT players");
+
+        await Server.NextFrameAsync(() => 
         {
-            try
+            if (player.IsValid)
             {
-                DebugLog("Starting Faceit command processing");
-                
-                List<CCSPlayerController> allPlayers = Utilities.GetPlayers();
-                var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist && p.IsValid).ToList();
-                var team2Players = allPlayers.Where(p => p.Team == CsTeam.CounterTerrorist && p.IsValid).ToList();
-
-                DebugLog($"Found {team1Players.Count} T players and {team2Players.Count} CT players");
-
-                await Server.NextFrameAsync(() => 
-                {
-                    if (player.IsValid)
-                    {
-                        player.PrintToChat($"{ChatColors.Green.ToString()}══════ Faceit Elo Ratings ══════");
-                    }
-                });
-
-                await DisplayTeamElo(team1Players, "TERRORISTS", player);
-                await DisplayTeamElo(team2Players, "COUNTER-TERRORISTS", player);
+                // Red header with symbols
+                player.PrintToChat($" {ChatColors.Red}══════ FACEIT ELO RATINGS ══════{ChatColors.Default}");
             }
-            catch (Exception ex)
-            {
-                DebugLog($"Error in HandleFaceitCommand: {ex.Message}");
-            }
-        }
+        });
 
-        private async Task DisplayTeamElo(List<CCSPlayerController> players, string teamName, CCSPlayerController target)
+        await DisplayTeamElo(team1Players, "TERRORISTS", player);
+        await DisplayTeamElo(team2Players, "COUNTER-TERRORISTS", player);
+    }
+    catch (Exception ex)
+    {
+        DebugLog($"Error in HandleFaceitCommand: {ex.Message}");
+    }
+}
+
+private async Task DisplayTeamElo(List<CCSPlayerController> players, string teamName, CCSPlayerController target)
+{
+    if (!target.IsValid) return;
+    
+    DebugLog($"Displaying Elo for {teamName}");
+    
+    await Server.NextFrameAsync(() =>
+    {
+        if (target.IsValid)
         {
-            if (!target.IsValid) return;
-            
-            DebugLog($"Displaying Elo for {teamName}");
-            
-            await Server.NextFrameAsync(() =>
-            {
-                if (target.IsValid)
-                {
-                    target.PrintToChat($"{ChatColors.Orange.ToString()}=== {teamName} ===");
-                }
-            });
-
-            foreach (var player in players)
-            {
-                if (!player.IsValid || player.IsBot) continue;
-
-                DebugLog($"Processing player: {player.PlayerName}");
-                var elo = await GetPlayerElo(player);
-                var eloText = elo == -1 ? "N/A" : elo.ToString();
-                var eloColor = GetEloColor(elo);
-
-                await Server.NextFrameAsync(() =>
-                {
-                    if (target.IsValid && player.IsValid)
-                    {
-                        target.PrintToChat($"  {ChatColors.Green.ToString()}{player.PlayerName}" +
-                                        $"{ChatColors.Default.ToString()} - " +
-                                        $"{eloColor}{eloText}");
-                    }
-                });
-            }
+            // Orange team header with symbols
+            target.PrintToChat($" {ChatColors.Orange}=== {teamName.ToUpper()} ==={ChatColors.Default}");
         }
+    });
 
+    foreach (var player in players)
+    {
+        if (!player.IsValid || player.IsBot) continue;
+
+        DebugLog($"Processing player: {player.PlayerName}");
+        var elo = await GetPlayerElo(player);
+        var eloText = elo == -1 ? "N/A" : elo.ToString();
+        var eloColor = GetEloColor(elo);
+
+        await Server.NextFrameAsync(() =>
+        {
+            if (target.IsValid && player.IsValid)
+            {
+                // Player line with explicit color reset
+                target.PrintToChat($"  {ChatColors.Green}{player.PlayerName}" +
+                                $"{ChatColors.Default} - " +
+                                $"{eloColor}{eloText}{ChatColors.Default}");
+            }
+        });
+    }
+}
         private async Task<int> GetPlayerElo(CCSPlayerController player)
         {
             DebugLog($"GetPlayerElo called for {player.PlayerName}");

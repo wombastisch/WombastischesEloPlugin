@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "SQsfQ/vjRoA=",
+  "dgSpecHash": "ttY2uu6/2DE=",
   "success": true,
   "projectFilePath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
   "expectedPackageFiles": [
@@ -54,8 +54,7 @@
     "/Users/wombastisch/.nuget/packages/system.text.json/8.0.0/system.text.json.8.0.0.nupkg.sha512",
     "/Users/wombastisch/.nuget/packages/tomlyn/0.19.0/tomlyn.0.19.0.nupkg.sha512",
     "/Users/wombastisch/.nuget/packages/microsoft.netcore.app.ref/8.0.14/microsoft.netcore.app.ref.8.0.14.nupkg.sha512",
-    "/Users/wombastisch/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.14/microsoft.aspnetcore.app.ref.8.0.14.nupkg.sha512",
-    "/Users/wombastisch/.nuget/packages/microsoft.netcore.app.host.osx-arm64/8.0.14/microsoft.netcore.app.host.osx-arm64.8.0.14.nupkg.sha512"
+    "/Users/wombastisch/.nuget/packages/microsoft.aspnetcore.app.ref/8.0.14/microsoft.aspnetcore.app.ref.8.0.14.nupkg.sha512"
   ],
   "logs": []
 }
