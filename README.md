@@ -24,10 +24,16 @@ If it still does not appear in the list, try restarting the server and check aga
 ---
 
 ## ⚙️ Debugging / Configuration  
-The debug mode logs messages in the server console with the prefix: `[WombastischesEloPlugin]`.  
+The debug mode logs messages in the server console with the prefix: `[WombastischesEloPlugin]`.
+It's still enabled on default. 
 
-**To-Do:** Add a configuration file! This will include settings for the Faceit API key along with setup instructions.  
-For now, make sure to set a valid **Faceit API key** in the source code.  
+The configuration is done editing the WombastischesEloPlugin.json
+```bash
+{
+  "DebugMode": true,  //false to disable server console output
+  "FaceitApiKey": "faceit-api-key-here" //enter your faceit api key - you can generate one on https://developers.faceit.com/ create a new app and a new server side API key
+}
+```
 
 ---
 

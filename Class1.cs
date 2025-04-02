@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CounterStrikeSharp.API;
@@ -13,26 +14,58 @@ namespace WombastischesEloPlugin
 {
     public class WombastischesEloPlugin : BasePlugin
     {
-        public override string ModuleName => "Wombastiches Elo Plugin";
-        public override string ModuleVersion => "1.0.0";
+        public override string ModuleName => "Wombastisches Elo Plugin";
+        public override string ModuleVersion => "1.0.1";
         public override string ModuleAuthor => "wombat.";  
-        public override string ModuleDescription => "!faceit command displays Faceit Elo for all players on the server";   
-        private const string FaceitApiKey = "7f772ef4-c85e-4c1d-8249-cbeaa96e5a4b";
+        public override string ModuleDescription => "!faceit command displays Faceit Elo for all players on the server";
         
-        private const bool DebugMode = true;
-        
+        private PluginConfig Config { get; set; } = new PluginConfig(); 
+        private const string ConfigFileName = "WombastischesEloPlugin.json";
+
         private void DebugLog(string message)
         {
-            if (DebugMode)
+            if (Config.DebugMode)
             {
-                Console.WriteLine($"[WombastischesEloPlugin] {DateTime.Now:HH:mm:ss.fff} {message}");
+                Console.WriteLine($"[{ModuleName}] {DateTime.Now:HH:mm:ss.fff} {message}");
             }
         }
 
         public override void Load(bool hotReload)
         {
+            LoadConfig();
             AddCommand("css_faceit", "Show Faceit ELO", Command_Faceit);
             DebugLog("Plugin loaded successfully");
+        }
+
+        private void LoadConfig()
+        {
+            var configPath = Path.Combine(ModuleDirectory, ConfigFileName);
+            
+            if (!File.Exists(configPath))
+            {
+                Config = new PluginConfig();
+                File.WriteAllText(configPath, JsonConvert.SerializeObject(Config, Formatting.Indented));
+                DebugLog("Created new config file with default values");
+            }
+            else
+            {
+                try
+                {
+                    var config = JsonConvert.DeserializeObject<PluginConfig>(File.ReadAllText(configPath));
+                    Config = config ?? new PluginConfig(); // dumb null check - fix
+                    DebugLog("Loaded config file successfully");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error loading config: {ex.Message}");
+                    Config = new PluginConfig();
+                }
+            }
+
+            if (string.IsNullOrEmpty(Config.FaceitApiKey) || Config.FaceitApiKey == "faceit-api-key-here")
+            {
+                Console.WriteLine("ERROR: Please set your Faceit API key in the config file!");
+            }
         }
 
         private string GetEloColor(int elo)
@@ -48,7 +81,6 @@ namespace WombastischesEloPlugin
             if (player == null || !player.IsValid) return;
             DebugLog($"Faceit command invoked by {player.PlayerName}");
             
-            // Alle Server-Interaktionen im Haupt-Thread ausführen
             Server.NextFrame(() => HandleFaceitCommand(player));
         }
 
@@ -56,7 +88,6 @@ namespace WombastischesEloPlugin
         {
             DebugLog("Starting Faceit command processing");
 
-            // Abrufen aller Spieler auf dem Server (muss auf dem Haupt-Thread erfolgen!)
             var allPlayers = Utilities.GetPlayers().Where(p => p != null && p.IsValid).ToList();
             
             var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist).ToList();
@@ -66,18 +97,16 @@ namespace WombastischesEloPlugin
             var team1Data = GetPlayerSteamIdsSafe(team1Players);
             var team2Data = GetPlayerSteamIdsSafe(team2Players);
 
-            // Faceit ELO-Anfragen in einem **Hintergrund-Thread** parallel ausführen
             Task.Run(async () =>
             {
                 var team1Results = await ProcessPlayersParallel(team1Data);
                 var team2Results = await ProcessPlayersParallel(team2Data);
 
-                // Zurück in den Haupt-Thread wechseln, um Chat-Nachrichten zu senden
                 Server.NextFrame(() =>
                 {
                     if (!player.IsValid) return;
 
-                    player.PrintToChat($" {ChatColors.Red}══════ FACEIT ELO RATINGS ══════{ChatColors.Default}");
+                    player.PrintToChat($" {ChatColors.Red}### FACEIT ELO RATINGS ###{ChatColors.Default}");
                     PrintTeamResults(player, "TERRORISTS", team1Results);
                     PrintTeamResults(player, "COUNTER-TERRORISTS", team2Results);
                 });
@@ -87,7 +116,7 @@ namespace WombastischesEloPlugin
         private List<PlayerData> GetPlayerSteamIdsSafe(List<CCSPlayerController> players)
         {
             return players.Where(p => p.IsValid && !p.IsBot)
-                .Select(p => new PlayerData(p.PlayerName!, p.SteamID.ToString()))
+                .Select(p => new PlayerData(p.PlayerName ?? "Unknown", p.SteamID.ToString())) // dumb null check - fix
                 .ToList();
         }
 
@@ -116,11 +145,16 @@ namespace WombastischesEloPlugin
         private async Task<int> FetchElo(string steamId)
         {
             if (string.IsNullOrEmpty(steamId)) return -1;
+            if (string.IsNullOrEmpty(Config?.FaceitApiKey)) // dumb null check - fix
+            {
+                DebugLog("API Error: No Faceit API key configured!");
+                return -1;
+            }
 
             try
             {
                 using var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {FaceitApiKey}");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Config.FaceitApiKey}");
                 
                 var url = $"https://open.faceit.com/data/v4/players?game=cs2&game_player_id={steamId}";
                 DebugLog($"Making API request to: {url}");
@@ -153,6 +187,12 @@ namespace WombastischesEloPlugin
 
         private record PlayerData(string PlayerName, string SteamId);
         private record EloResult(string PlayerName, string Elo, string Color);
+
+        public class PluginConfig
+        {
+            public bool DebugMode { get; set; } = true;
+            public string FaceitApiKey { get; set; } = "faceit-api-key-here";
+        }
     }
 
     public static class StringExtensions
