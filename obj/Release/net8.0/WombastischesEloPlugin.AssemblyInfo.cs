@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("WombastischesEloPlugin")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7016840fe1c68d3893addcfab0275197c53b9c30")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+65c633a79327dba2703fbc7b39d2903082c9afdc")]
 [assembly: System.Reflection.AssemblyProductAttribute("WombastischesEloPlugin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("WombastischesEloPlugin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

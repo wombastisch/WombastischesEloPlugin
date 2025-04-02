@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "ttY2uu6/2DE=",
+  "dgSpecHash": "Eta/2oAaqfE=",
   "success": true,
-  "projectFilePath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
+  "projectFilePath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
   "expectedPackageFiles": [
     "/Users/wombastisch/.nuget/packages/counterstrikesharp.api/1.0.315/counterstrikesharp.api.1.0.315.nupkg.sha512",
     "/Users/wombastisch/.nuget/packages/mcmaster.netcore.plugins/1.4.0/mcmaster.netcore.plugins.1.4.0.nupkg.sha512",

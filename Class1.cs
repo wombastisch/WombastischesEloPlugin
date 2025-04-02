@@ -47,121 +47,112 @@ namespace WombastischesEloPlugin
         {
             if (player == null || !player.IsValid) return;
             DebugLog($"Faceit command invoked by {player.PlayerName}");
+            
+            // Alle Server-Interaktionen im Haupt-Thread ausführen
             Server.NextFrame(() => HandleFaceitCommand(player));
         }
 
-        private async void HandleFaceitCommand(CCSPlayerController player)
-{
-    try
-    {
-        DebugLog("Starting Faceit command processing");
-        
-        List<CCSPlayerController> allPlayers = Utilities.GetPlayers();
-        var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist && p.IsValid).ToList();
-        var team2Players = allPlayers.Where(p => p.Team == CsTeam.CounterTerrorist && p.IsValid).ToList();
-
-        DebugLog($"Found {team1Players.Count} T players and {team2Players.Count} CT players");
-
-        await Server.NextFrameAsync(() => 
+        private void HandleFaceitCommand(CCSPlayerController player)
         {
-            if (player.IsValid)
+            DebugLog("Starting Faceit command processing");
+
+            // Abrufen aller Spieler auf dem Server (muss auf dem Haupt-Thread erfolgen!)
+            var allPlayers = Utilities.GetPlayers().Where(p => p != null && p.IsValid).ToList();
+            
+            var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist).ToList();
+            var team2Players = allPlayers.Where(p => p.Team == CsTeam.CounterTerrorist).ToList();
+            DebugLog($"Found {team1Players.Count} T players and {team2Players.Count} CT players");
+
+            var team1Data = GetPlayerSteamIdsSafe(team1Players);
+            var team2Data = GetPlayerSteamIdsSafe(team2Players);
+
+            // Faceit ELO-Anfragen in einem **Hintergrund-Thread** parallel ausführen
+            Task.Run(async () =>
             {
-                // Red header with symbols
-                player.PrintToChat($" {ChatColors.Red}══════ FACEIT ELO RATINGS ══════{ChatColors.Default}");
-            }
-        });
+                var team1Results = await ProcessPlayersParallel(team1Data);
+                var team2Results = await ProcessPlayersParallel(team2Data);
 
-        await DisplayTeamElo(team1Players, "TERRORISTS", player);
-        await DisplayTeamElo(team2Players, "COUNTER-TERRORISTS", player);
-    }
-    catch (Exception ex)
-    {
-        DebugLog($"Error in HandleFaceitCommand: {ex.Message}");
-    }
-}
+                // Zurück in den Haupt-Thread wechseln, um Chat-Nachrichten zu senden
+                Server.NextFrame(() =>
+                {
+                    if (!player.IsValid) return;
 
-private async Task DisplayTeamElo(List<CCSPlayerController> players, string teamName, CCSPlayerController target)
-{
-    if (!target.IsValid) return;
-    
-    DebugLog($"Displaying Elo for {teamName}");
-    
-    await Server.NextFrameAsync(() =>
-    {
-        if (target.IsValid)
-        {
-            // Orange team header with symbols
-            target.PrintToChat($" {ChatColors.Orange}=== {teamName.ToUpper()} ==={ChatColors.Default}");
+                    player.PrintToChat($" {ChatColors.Red}══════ FACEIT ELO RATINGS ══════{ChatColors.Default}");
+                    PrintTeamResults(player, "TERRORISTS", team1Results);
+                    PrintTeamResults(player, "COUNTER-TERRORISTS", team2Results);
+                });
+            });
         }
-    });
 
-    foreach (var player in players)
-    {
-        if (!player.IsValid || player.IsBot) continue;
-
-        DebugLog($"Processing player: {player.PlayerName}");
-        var elo = await GetPlayerElo(player);
-        var eloText = elo == -1 ? "N/A" : elo.ToString();
-        var eloColor = GetEloColor(elo);
-
-        await Server.NextFrameAsync(() =>
+        private List<PlayerData> GetPlayerSteamIdsSafe(List<CCSPlayerController> players)
         {
-            if (target.IsValid && player.IsValid)
-            {
-                // Player line with explicit color reset
-                target.PrintToChat($"  {ChatColors.Green}{player.PlayerName}" +
-                                $"{ChatColors.Default} - " +
-                                $"{eloColor}{eloText}{ChatColors.Default}");
-            }
-        });
-    }
-}
-        private async Task<int> GetPlayerElo(CCSPlayerController player)
+            return players.Where(p => p.IsValid && !p.IsBot)
+                .Select(p => new PlayerData(p.PlayerName!, p.SteamID.ToString()))
+                .ToList();
+        }
+
+        private async Task<List<EloResult>> ProcessPlayersParallel(List<PlayerData> players)
         {
-            DebugLog($"GetPlayerElo called for {player.PlayerName}");
-
-            string steamId = string.Empty;
-
-            await Server.NextFrameAsync(() =>
+            var tasks = players.Select(async p =>
             {
-                if (player.IsValid && !player.IsBot)
-                    steamId = player.SteamID.ToString();
+                try
+                {
+                    var elo = await FetchElo(p.SteamId);
+                    return new EloResult(
+                        p.PlayerName,
+                        elo == -1 ? "N/A" : elo.ToString(),
+                        GetEloColor(elo)
+                    );
+                }
+                catch
+                {
+                    return new EloResult(p.PlayerName, "N/A", ChatColors.LightPurple.ToString());
+                }
             });
 
-            if (string.IsNullOrEmpty(steamId))
-            {
-                DebugLog("SteamID retrieval failed - player might be invalid or bot");
-                return -1;
-            }
+            return (await Task.WhenAll(tasks)).ToList();
+        }
 
-            DebugLog($"Using SteamID: {steamId}");
+        private async Task<int> FetchElo(string steamId)
+        {
+            if (string.IsNullOrEmpty(steamId)) return -1;
 
             try
             {
-                return await Task.Run(async () =>
-                {
-                    using var client = new HttpClient();
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {FaceitApiKey}");
-                    
-                    var url = $"https://open.faceit.com/data/v4/players?game=cs2&game_player_id={steamId}";
-                    DebugLog($"Making API request to: {url}");
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {FaceitApiKey}");
+                
+                var url = $"https://open.faceit.com/data/v4/players?game=cs2&game_player_id={steamId}";
+                DebugLog($"Making API request to: {url}");
 
-                    var response = await client.GetStringAsync(url);
-                    DebugLog($"Received API response: {response.Truncate(200)}");
+                var response = await client.GetStringAsync(url);
+                DebugLog($"Received API response: {response.Truncate(200)}");
 
-                    dynamic? data = JsonConvert.DeserializeObject(response);
-                    int elo = (int?)data?.games?.cs2?.faceit_elo ?? -1;
-                    
-                    DebugLog($"Parsed Elo value: {elo}");
-                    return elo;
-                });
+                dynamic? data = JsonConvert.DeserializeObject(response);
+                if (data?.games?.cs2?.faceit_elo == null) return -1;
+                
+                return (int)data.games.cs2.faceit_elo;
             }
             catch (Exception ex)
             {
-                DebugLog($"API Error: {ex.Message}");
+                DebugLog($"API Error for {steamId}: {ex.Message}");
                 return -1;
             }
         }
+
+        private void PrintTeamResults(CCSPlayerController player, string teamName, List<EloResult> results)
+        {
+            player.PrintToChat($" {ChatColors.Orange}=== {teamName} ==={ChatColors.Default}");
+            foreach (var result in results)
+            {
+                player.PrintToChat($"  {ChatColors.Green}{result.PlayerName}" +
+                                $"{ChatColors.Default} - " +
+                                $"{result.Color}{result.Elo}{ChatColors.Default}");
+            }
+        }
+
+        private record PlayerData(string PlayerName, string SteamId);
+        private record EloResult(string PlayerName, string Elo, string Color);
     }
 
     public static class StringExtensions
@@ -169,7 +160,7 @@ private async Task DisplayTeamElo(List<CCSPlayerController> players, string team
         public static string Truncate(this string value, int maxLength)
         {
             if (string.IsNullOrEmpty(value)) return value;
-            return value.Length <= maxLength ? value : value.Substring(0, maxLength) + "...";
+            return value.Length <= maxLength ? value : value[..maxLength] + "...";
         }
     }
 }

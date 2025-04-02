@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin.csproj": {}
+    "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/WombastischesEloPlugin.csproj": {}
   },
   "projects": {
-    "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin.csproj": {
+    "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/WombastischesEloPlugin.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
+        "projectUniqueName": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
         "projectName": "WombastischesEloPlugin",
-        "projectPath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
+        "projectPath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/WombastischesEloPlugin.csproj",
         "packagesPath": "/Users/wombastisch/.nuget/packages/",
-        "outputPath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/obj/",
+        "outputPath": "/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/wombastisch/.nuget/NuGet/NuGet.Config"
