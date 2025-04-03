@@ -1,10 +1,10 @@
-# 🏆 Wombastic Elo Plugin 🏆  
-**Counter-StrikeSharp plugin to display Faceit Elo directly in-game!**  
+# 🏆 Wombastisches Elo Plugin 🏆  
+**CounterStrikeSharp plugin to display Faceit Elo directly in-game!**  
 
 ## 📌 Requirements
 For the plugin to work, the following extensions are required:
 - **[MetaMod](https://www.sourcemm.net/)** – A modding platform for CS2 servers
-- **[Counter-StrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp)** – Enables C# plugins for CS2
+- **[CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp)** – Enables C# plugins for CS2
 
 Make sure these extensions are installed before proceeding with the plugin installation!
 
@@ -16,6 +16,7 @@ Make sure these extensions are installed before proceeding with the plugin insta
 ✅ Optimized API requests for fast responses  
 ✅ Debug mode for detailed error analysis  
 ✅ Custom permission group `@custom/faceit` for access control  
+✅ Configurable visibility of Faceit Elo output (`self`, `admin`, or `all`)  
 
 ---
 
@@ -25,31 +26,43 @@ Download the latest `.zip` file from the **[Releases](https://github.com/wombast
 
 ### 2️⃣ **Extract & Copy Files**  
 Extract the ZIP file and copy its contents into the following directory on your CS2 server:  
-```
-csgo/counterstrikesharp/plugins/
-```
+csgo/addons/counterstrikesharp/plugins/
+
 
 ### 3️⃣ **Initial Setup & Debug Mode**  
 After installation, ensure the plugin is properly loaded and configured:
-- Run `"css_plugins list"` in the server console to check if the plugin is loaded.
-- If not loaded, try `"css_plugins load WombastischesEloPlugin"`.
+- Run `css_plugins list` in the server console to check if the plugin is loaded.
+- If not loaded, try `css_plugins load WombastischesEloPlugin`.
 - If the plugin still does not appear, restart the server and check again.
 
-Configuration is done through the following file:
-```
-csgo/addons/counterstrikesharp/configs/plugins/WombastischesEloPlugin/WombastischesEloPlugin.json
-```
+### 4️⃣ **Configuration File**  
+The plugin is configured via the following JSON configuration file:  
+csgo/addons/counterstrikesharp/configs/plugins/WombastischesEloPlugin/config.json
+
 Example configuration:
 ```json
 {
   "DebugMode": true,
-  "FaceitApiKey (Get Faceit API key: https://developer.faceit.com)": "faceit-api-key-here",
-  "RequiredPermission": "@custom/faceit"
+  "FaceitApiKey": "faceit-api-key-here",
+  "RequiredPermissions": ["@custom/faceit", "@css/admin"],
+  "OutputVisibility": "self"
 }
 ```
 
-### 🔑 Setting Up Permissions
-The plugin uses a custom permission group `@custom/faceit`, which must be defined in the `admins.json` file of Counter-StrikeSharp. Example:
+### ⚙️ Configuration Options:
+
+- **DebugMode:** Set to true to enable debug logs, which help diagnose issues. Set to `false` to disable debug logs.
+- **FaceitApiKey:** Your Faceit API key. You can get it from [developers.faceit.com](https://developers.faceit.com) - *This is required!*
+- **RequiredPermissions:** A list of permission groups that can use the `!faceit` command. Leave empty for unrestricted access or specify groups such as @css/admin.
+- **OutputVisibility:** Defines who can see the Faceit Elo output.
+    - **Options:**
+        - `self` – Only the player who executes the command will see the results.
+        - `admin` – Only admins with the correct permissions will see the results.
+        - `all` – All players on the server will see the results.
+
+## 🔑 Setting Up Permissions
+By default, the plugin uses a custom permission group `@custom/faceit`, which must be defined in the `admins.json` file of Counter-StrikeSharp. Example:
+
 ```json
 {
   "user1": {
@@ -61,42 +74,41 @@ The plugin uses a custom permission group `@custom/faceit`, which must be define
     "flags": ["@custom/faceit"]
   }
 }
-
 ```
 Save the file and restart the server to apply the changes.
 
----
+## 🎮 Usage
 
-## 🎮 Usage  
-Use the following command in the in-game chat or console to retrieve the Faceit Elo of all connected players:  
+Use the following command in the in-game chat or console to retrieve the Faceit Elo of all connected players:
 ```bash
 !faceit
 ```
+## ❓ Troubleshooting & Support
 
----
-
-## ❓ Troubleshooting & Support  
 If you encounter issues:
-1. **Check server logs** – Errors such as invalid API keys or missing plugins will be logged. If not check if "DebugMode" is set to true in the configuration file.
-2. **Is the plugin loaded?** – Use `"css_plugins list"` to verify.
-3. **Search GitHub Issues** – Someone might have already solved your issue: [GitHub Issues](https://github.com/wombastisch/WombastischesEloPlugin/issues)
+
+- **Check server logs** – Errors such as invalid API keys or missing plugins will be logged. If not, check if "DebugMode" is set to `true` in the configuration file.
+- **Is the plugin loaded?** – Use `"css_plugins list"` to verify.
+- **Search GitHub Issues** – Someone might have already solved your issue: [GitHub Issues](https://github.com/wombastisch/WombastischesEloPlugin/issues)
 
 If the problem persists, open a new issue with a detailed description of the problem.
 
 ---
 
-## 🏗️ Development & Contributions  
+## 🏗️ Development & Contributions
+
 If you want to contribute:
-1. **Clone the repository:**  
-   ```bash
-   git clone https://github.com/wombastisch/WombastischesEloPlugin.git
-   cd WombastischesEloPlugin
-   ```
-2. **Make changes & test**  
-3. **Submit a Pull Request**  
 
----
+1. **Clone the repository:**
+    ```bash
+    git clone https://github.com/wombastisch/WombastischesEloPlugin.git
+    cd WombastischesEloPlugin
+    ```
 
-## 📜 License  
-This project is licensed under the **MIT License** – free to use, modify, and distribute! 🎉
+2. **Make changes & test**
 
+3. **Submit a Pull Request**
+
+## 📜 License
+
+This project is licensed under the MIT License – free to use, modify, and distribute! 🎉

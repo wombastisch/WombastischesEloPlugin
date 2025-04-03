@@ -15,13 +15,13 @@ namespace WombastischesEloPlugin
 {
     public class WombastischesEloPlugin : BasePlugin
     {
-        public override string ModuleName => "Wombastisches Elo Plugin";
-        public override string ModuleVersion => "1.0.2";
+        public override string ModuleName => "WombastischesEloPlugin";
+        public override string ModuleVersion => "1.0.3";
         public override string ModuleAuthor => "wombat.";  
         public override string ModuleDescription => "!faceit command displays Faceit Elo for all players on the server";
         
         private PluginConfig Config { get; set; } = new PluginConfig();
-        private const string ConfigFileName = "WombastischesEloPlugin.json";
+        private const string ConfigFileName = "config.json";
         private void DebugLog(string message)
         {
             if (Config.DebugMode)
@@ -123,8 +123,7 @@ namespace WombastischesEloPlugin
 
                 using var response = await client.GetAsync(url).ConfigureAwait(false);
         
-                // Korrigierte Zeile
-                await Server.NextFrameAsync(() => { }); // Leere Aktion als Parameter
+                await Server.NextFrameAsync(() => { }); 
         
                 if (!response.IsSuccessStatusCode)
                 {
@@ -138,7 +137,6 @@ namespace WombastischesEloPlugin
             }
             catch (Exception ex)
             {
-                // Korrigierte Zeile
                 await Server.NextFrameAsync(() => DebugLog($"API exception: {ex.Message}"));
                 return -1;
             }
@@ -159,7 +157,7 @@ namespace WombastischesEloPlugin
         {
             if (player == null || !player.IsValid) return;
 
-            if (!IsPlayerAdmin(player, Config.RequiredPermission, "@css/root", "@custom/faceit"))
+            if (!IsPlayerAdmin(player, Config.RequiredPermissions.ToArray()))
             {
                 SendPlayerNotAdminMessage(player);
                 return;
@@ -189,14 +187,13 @@ namespace WombastischesEloPlugin
         private void HandleFaceitCommand(CCSPlayerController player)
         {
             DebugLog("Starting Faceit command processing");
-    
+
             if (!ValidateApiKeySilent())
             {
                 player.PrintToChat($" {ChatColors.Red}Plugin configuration error! Check server console.");
                 return;
             }
 
-            // Korrigierte Zeile
             Server.NextFrame(async () =>
             {
                 try
@@ -205,36 +202,56 @@ namespace WombastischesEloPlugin
                         .Where(p => p != null && p.IsValid)
                         .ToList();
 
-                var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist).ToList();
-                var team2Players = allPlayers.Where(p => p.Team == CsTeam.CounterTerrorist).ToList();
+                    var team1Players = allPlayers.Where(p => p.Team == CsTeam.Terrorist).ToList();
+                    var team2Players = allPlayers.Where(p => p.Team == CsTeam.CounterTerrorist).ToList();
 
-                var team1Data = GetPlayerSteamIdsSafe(team1Players);
-                var team2Data = GetPlayerSteamIdsSafe(team2Players);
+                    var team1Data = GetPlayerSteamIdsSafe(team1Players);
+                    var team2Data = GetPlayerSteamIdsSafe(team2Players);
 
-                var results = await Task.WhenAll(
-                    ProcessPlayersParallel(team1Data),
-                    ProcessPlayersParallel(team2Data)
-                ).ConfigureAwait(false);
+                    var results = await Task.WhenAll(
+                        ProcessPlayersParallel(team1Data),
+                        ProcessPlayersParallel(team2Data)
+                    ).ConfigureAwait(false);
 
-                var team1Results = results[0];
-                var team2Results = results[1];
+                    var team1Results = results[0];
+                    var team2Results = results[1];
 
-                // Korrigierte Zeile
-                await Server.NextFrameAsync(() => 
+                    await Server.NextFrameAsync(() =>
+                    {
+                        if (!player.IsValid) return;
+
+                        var targetPlayers = GetTargetPlayersForOutput(player);
+
+                        foreach (var target in targetPlayers)
+                        {
+                            target.PrintToChat($" {ChatColors.Red}### FACEIT ELO RATINGS ###{ChatColors.Default}");
+                            PrintTeamResults(target, "TERRORISTS", team1Results);
+                            PrintTeamResults(target, "COUNTER-TERRORISTS", team2Results);
+                        }
+                    });
+                }
+                catch (Exception ex)
                 {
-                    if (!player.IsValid) return;
-                    
-                    player.PrintToChat($" {ChatColors.Red}### FACEIT ELO RATINGS ###{ChatColors.Default}");
-                    PrintTeamResults(player, "TERRORISTS", team1Results);
-                    PrintTeamResults(player, "COUNTER-TERRORISTS", team2Results);
-                });
-            }
-            catch (Exception ex)
+                    Console.WriteLine($"[{ModuleName}] Error: {ex}");
+                }
+            });
+        }
+
+        private List<CCSPlayerController> GetTargetPlayersForOutput(CCSPlayerController sender)
+        {
+            var allPlayers = Utilities.GetPlayers()
+                .Where(p => p != null && p.IsValid)
+                .ToList();
+
+            return Config.OutputVisibility switch
             {
-                Console.WriteLine($"[{ModuleName}] Error: {ex}");
-            }
-         });
-    }
+                "self" => new List<CCSPlayerController> { sender },
+                "admin" => allPlayers.Where(p => IsPlayerAdmin(p, Config.RequiredPermissions.ToArray())).ToList(),
+                "all" => allPlayers,
+                _ => new List<CCSPlayerController> { sender }
+            };
+        }
+
 
         private bool ValidateApiKeySilent()
         {
@@ -296,14 +313,22 @@ namespace WombastischesEloPlugin
 
         private record PlayerData(string PlayerName, string SteamId);
         private record EloResult(string PlayerName, string Elo, string Color);
+        
         public class PluginConfig
         {
+            [JsonProperty("DebugMode (Set to false to disable DebugMode)")]
             public bool DebugMode { get; set; } = true;
 
             [JsonProperty("FaceitApiKey (Get Faceit API key: https://developer.faceit.com)")]
             public string FaceitApiKey { get; set; } = "faceit-api-key-here";
-            public string RequiredPermission { get; set; } = "@custom/faceit";
+
+            [JsonProperty("RequiredPermissions (Leave empty if everyone on the server should be able to use !faceit command)")]
+            public List<string> RequiredPermissions { get; set; } = new List<string> { "@custom/faceit", "@css/admin" };
+
+            [JsonProperty("OutputVisibility (Options: 'self', 'admin', 'all')")]
+            public string OutputVisibility { get; set; } = "self";
         }
+
     }
     public static class StringExtensions
     {
