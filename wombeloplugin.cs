@@ -358,7 +358,7 @@ namespace WombastischesEloPlugin
         }
     }
 
-    public class StatsHandler : IDisposable
+        public class StatsHandler : IDisposable
     {
         private readonly HttpClient _httpClient;
         private readonly WombastischesEloPlugin _plugin;
@@ -367,7 +367,7 @@ namespace WombastischesEloPlugin
         {
             _plugin = plugin;
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            
+                
             if (!string.IsNullOrEmpty(_plugin.Config.FaceitApiKey))
             {
                 _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_plugin.Config.FaceitApiKey}");
@@ -382,7 +382,6 @@ namespace WombastischesEloPlugin
         {
             if (player == null || !player.IsValid) return;
 
-
             if (string.IsNullOrEmpty(_plugin.Config.FaceitApiKey))
             {
                 Server.NextFrame(() => player.PrintToChat($"{ChatColors.Red}Faceit API key not configured! Check server console."));
@@ -395,8 +394,8 @@ namespace WombastischesEloPlugin
                 var targetName = command.ArgByIndex(1);
                 var targetPlayer = Utilities.GetPlayers()
                     .FirstOrDefault(p => p.IsValid &&
-                                           !p.IsBot &&
-                                           p.PlayerName.Equals(targetName, StringComparison.OrdinalIgnoreCase));
+                                        !p.IsBot &&
+                                        p.PlayerName.Equals(targetName, StringComparison.OrdinalIgnoreCase));
 
                 if (targetPlayer == null)
                 {
@@ -406,16 +405,19 @@ namespace WombastischesEloPlugin
 
                 _plugin.DebugLog($"[StatsHandler] Fetching stats for SteamID: {targetPlayer.SteamID}", DebugLevel.Light);
                 var stats = await FetchPlayerStats(targetPlayer.SteamID.ToString());
+
                 Server.NextFrame(() =>
                 {
                     if (player.IsValid && stats != null)
                     {
+                        // Ausgabe der aggregierten Statistiken
                         player.PrintToChat($" {ChatColors.LightRed}» {ChatColors.Orange}{targetPlayer.PlayerName}'s 90-Day Stats");
-                        player.PrintToChat($" {ChatColors.Default}Matches: {ChatColors.Green}{stats.RecentMatches}");
-                        player.PrintToChat($" {ChatColors.Default}Winrate: {ChatColors.Green}{stats.WinRate}%");
+                        player.PrintToChat($" {ChatColors.Default}Matches: {ChatColors.Green}{stats.MatchesPlayed}");
+                        player.PrintToChat($" {ChatColors.Default}Winrate: {ChatColors.Green}{stats.WinRate:F2}%");
                         player.PrintToChat($" {ChatColors.Default}K/D: {ChatColors.Green}{stats.AverageKd:F2}");
-                        player.PrintToChat($" {ChatColors.Default}K/R: {ChatColors.Green}{stats.AverageKills:F1}");
-                        player.PrintToChat($" {ChatColors.Default}HS%: {ChatColors.Green}{stats.HeadshotPercent}%");
+                        player.PrintToChat($" {ChatColors.Default}K/R: {ChatColors.Green}{stats.AverageKills:F2}");
+                        player.PrintToChat($" {ChatColors.Default}HS%: {ChatColors.Green}{stats.HeadshotPercent:F2}%");
+                        player.PrintToChat($" {ChatColors.Default}AvgADR: {ChatColors.Green}{stats.AvgADR:F2}");
                     }
                     else
                     {
@@ -429,7 +431,7 @@ namespace WombastischesEloPlugin
                 Server.NextFrame(() => player.PrintToChat($"{ChatColors.Red}Error fetching stats!"));
             }
         }
-        
+
         private async Task<PlayerStats?> FetchPlayerStats(string steamId)
         {
             if (string.IsNullOrEmpty(_plugin.Config.FaceitApiKey))
@@ -475,7 +477,8 @@ namespace WombastischesEloPlugin
                     return null;
                 }
 
-                return statsParsed.PlayerStats;
+                var aggregatedStats = AggregateStats(statsParsed.PlayerStats);
+                return aggregatedStats;
             }
             catch (HttpRequestException ex)
             {
@@ -489,23 +492,87 @@ namespace WombastischesEloPlugin
             }
         }
 
+        // Aggregiert die Spielerstatistiken und berechnet Durchschnittswerte
+        private PlayerStats AggregateStats(PlayerStats stats)
+        {
+            var aggregatedStats = new PlayerStats
+            {
+                TotalKills = stats.TotalKills,
+                TotalDeaths = stats.TotalDeaths,
+                TotalRounds = stats.TotalRounds,
+                MatchesPlayed = stats.MatchesPlayed,
+                TotalWins = stats.TotalWins,
+                TotalHeadshots = stats.TotalHeadshots,
+                TotalADR = stats.TotalADR
+            };
+
+            // Berechnungen
+            aggregatedStats.AverageKd = CalculateKDRatio(aggregatedStats);
+            aggregatedStats.AverageKills = CalculateKRRatio(aggregatedStats);
+            aggregatedStats.WinRate = CalculateWinRate(aggregatedStats);
+            aggregatedStats.HeadshotPercent = (aggregatedStats.TotalHeadshots / (double)aggregatedStats.TotalKills) * 100;
+            aggregatedStats.AvgADR = aggregatedStats.TotalADR / (double)aggregatedStats.MatchesPlayed;
+
+            return aggregatedStats;
+        }
+
+        // Berechnet das K/D Ratio
+        private double CalculateKDRatio(PlayerStats stats)
+        {
+            if (stats.TotalDeaths == 0)
+            {
+                return stats.TotalKills; // Wenn keine Tode, dann Kills als K/D-Ratio verwenden
+            }
+            return (double)stats.TotalKills / stats.TotalDeaths;
+        }
+
+        // Berechnet das Kills pro Runde Ratio
+        private double CalculateKRRatio(PlayerStats stats)
+        {
+            if (stats.TotalRounds == 0)
+            {
+                return 0; // Keine gespielten Runden, also keine Kills pro Runde
+            }
+            return (double)stats.TotalKills / stats.TotalRounds;
+        }
+
+        // Berechnet die Winrate
+        private double CalculateWinRate(PlayerStats stats)
+        {
+            if (stats.MatchesPlayed == 0)
+            {
+                return 0; // Keine Spiele, also keine Winrate
+            }
+            return (double)stats.TotalWins / stats.MatchesPlayed * 100;
+        }
+
         public void Dispose()
         {
             _httpClient?.Dispose();
         }
     }
 
+    // Die PlayerStats Klasse ist eine Aggregation aller relevanten Statistiken
+    public class PlayerStats
+    {
+        public int MatchesPlayed { get; set; }
+        public int TotalKills { get; set; }
+        public int TotalDeaths { get; set; }
+        public int TotalRounds { get; set; }
+        public int TotalWins { get; set; }
+        public double TotalHeadshots { get; set; }
+        public double TotalADR { get; set; }
+
+        public double AverageKd { get; set; }
+        public double AverageKills { get; set; }
+        public double WinRate { get; set; }
+        public double HeadshotPercent { get; set; }
+        public double AvgADR { get; set; }
+    }
+
+    // Die PlayerStatsResponse Klasse ist die Antwort der API
     public class PlayerStatsResponse
     {
         public PlayerStats PlayerStats { get; set; } = new PlayerStats();
-    }
-
-    public class PlayerStats
-    {
-        public int RecentMatches { get; set; }
-        public double WinRate { get; set; }
-        public double AverageKd { get; set; }
-        public double AverageKills { get; set; }
-        public double HeadshotPercent { get; set; }
     }
 }
