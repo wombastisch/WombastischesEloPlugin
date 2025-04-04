@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using System.Globalization;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Admin;
@@ -471,13 +472,13 @@ namespace WombastischesEloPlugin
                 var statsContent = await statsResponse.Content.ReadAsStringAsync();
                 var statsParsed = JsonConvert.DeserializeObject<PlayerStatsResponse>(statsContent);
 
-                if (statsParsed?.PlayerStats == null)
+                if (statsParsed?.items == null || !statsParsed.items.Any())
                 {
                     _plugin.DebugLog("Could not load PlayerStats", DebugLevel.Light);
                     return null;
                 }
 
-                var aggregatedStats = AggregateStats(statsParsed.PlayerStats);
+                var aggregatedStats = AggregateStats(statsParsed);
                 return aggregatedStats;
             }
             catch (HttpRequestException ex)
@@ -492,49 +493,63 @@ namespace WombastischesEloPlugin
             }
         }
 
-        // Aggregiert die Spielerstatistiken und berechnet Durchschnittswerte
-        private PlayerStats AggregateStats(PlayerStats stats)
+        // Modified aggregation method in StatsHandler
+        // Aktualisierte AggregateStats-Methode
+        private PlayerStats AggregateStats(PlayerStatsResponse statsResponse)
         {
-            var aggregatedStats = new PlayerStats
-            {
-                TotalKills = stats.TotalKills,
-                TotalDeaths = stats.TotalDeaths,
-                TotalRounds = stats.TotalRounds,
-                MatchesPlayed = stats.MatchesPlayed,
-                TotalWins = stats.TotalWins,
-                TotalHeadshots = stats.TotalHeadshots,
-                TotalADR = stats.TotalADR
-            };
+            var aggregatedStats = new PlayerStats();
 
-            // Berechnungen
-            aggregatedStats.AverageKd = CalculateKDRatio(aggregatedStats);
-            aggregatedStats.AverageKills = CalculateKRRatio(aggregatedStats);
-            aggregatedStats.WinRate = CalculateWinRate(aggregatedStats);
-            aggregatedStats.HeadshotPercent = (aggregatedStats.TotalHeadshots / (double)aggregatedStats.TotalKills) * 100;
-            aggregatedStats.AvgADR = aggregatedStats.TotalADR / (double)aggregatedStats.MatchesPlayed;
+            foreach (var item in statsResponse.items)
+            {
+                var stats = item.stats;
+
+                int.TryParse(stats.Kills, NumberStyles.Integer, CultureInfo.InvariantCulture, out int kills);
+                int.TryParse(stats.Deaths, NumberStyles.Integer, CultureInfo.InvariantCulture, out int deaths);
+                int.TryParse(stats.Rounds, NumberStyles.Integer, CultureInfo.InvariantCulture, out int rounds);
+                int.TryParse(stats.Result, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result);
+                int.TryParse(stats.Headshots, NumberStyles.Integer, CultureInfo.InvariantCulture, out int headshots);
+                double.TryParse(stats.ADR, NumberStyles.Any, CultureInfo.InvariantCulture, out double adr);
+
+                aggregatedStats.TotalKills += kills;
+                aggregatedStats.TotalDeaths += deaths;
+                aggregatedStats.TotalRounds += rounds;
+                aggregatedStats.TotalWins += result == 1 ? 1 : 0;
+                aggregatedStats.TotalHeadshots += headshots;
+                aggregatedStats.TotalADR += adr;
+                aggregatedStats.MatchesPlayed++;
+            }
+
+            if (aggregatedStats.MatchesPlayed > 0)
+            {
+                aggregatedStats.AverageKd = CalculateKDRatio(aggregatedStats);
+                aggregatedStats.AverageKills = CalculateKRRatio(aggregatedStats);
+                aggregatedStats.WinRate = CalculateWinRate(aggregatedStats);
+                aggregatedStats.HeadshotPercent = aggregatedStats.TotalKills > 0 ? 
+                    (aggregatedStats.TotalHeadshots / (double)aggregatedStats.TotalKills) * 100 : 0;
+                aggregatedStats.AvgADR = aggregatedStats.TotalADR / aggregatedStats.MatchesPlayed;
+            }
 
             return aggregatedStats;
         }
-
-        // Berechnet das K/D Ratio
-        private double CalculateKDRatio(PlayerStats stats)
-        {
-            if (stats.TotalDeaths == 0)
+            // Berechnet das K/D Ratio
+            private double CalculateKDRatio(PlayerStats stats)
             {
-                return stats.TotalKills; // Wenn keine Tode, dann Kills als K/D-Ratio verwenden
+                if (stats.TotalDeaths == 0)
+                {
+                    return stats.TotalKills; // Wenn keine Tode, dann Kills als K/D-Ratio verwenden
+                }
+                return (double)stats.TotalKills / stats.TotalDeaths;
             }
-            return (double)stats.TotalKills / stats.TotalDeaths;
-        }
 
-        // Berechnet das Kills pro Runde Ratio
-        private double CalculateKRRatio(PlayerStats stats)
-        {
-            if (stats.TotalRounds == 0)
+            // Berechnet das Kills pro Runde Ratio
+            private double CalculateKRRatio(PlayerStats stats)
             {
-                return 0; // Keine gespielten Runden, also keine Kills pro Runde
+                if (stats.TotalRounds == 0)
+                {
+                    return 0; // Keine gespielten Runden, also keine Kills pro Runde
+                }
+                return (double)stats.TotalKills / stats.TotalRounds;
             }
-            return (double)stats.TotalKills / stats.TotalRounds;
-        }
 
         // Berechnet die Winrate
         private double CalculateWinRate(PlayerStats stats)
@@ -570,9 +585,40 @@ namespace WombastischesEloPlugin
         public double AvgADR { get; set; }
     }
 
-    // Die PlayerStatsResponse Klasse ist die Antwort der API
+    
+    // Korrigierte PlayerStatsResponse-Klasse
     public class PlayerStatsResponse
     {
-        public PlayerStats PlayerStats { get; set; } = new PlayerStats();
+        public List<MatchItem> items { get; set; } = new List<MatchItem>();
+        
+        public class MatchItem
+        {
+            public MatchStats stats { get; set; } = new MatchStats();
+        }
+
+        public class MatchStats
+        {
+            [JsonProperty("Kills")]
+            public string Kills { get; set; } = "0";
+            
+            [JsonProperty("Deaths")]
+            public string Deaths { get; set; } = "0";
+            
+            [JsonProperty("Rounds")]
+            public string Rounds { get; set; } = "0";
+            
+            [JsonProperty("Result")]
+            public string Result { get; set; } = "0";
+            
+            [JsonProperty("Headshots")]
+            public string Headshots { get; set; } = "0";
+            
+            [JsonProperty("ADR")]
+            public string ADR { get; set; } = "0";
+            
+            [JsonProperty("Matches")]
+            public string Matches { get; set; } = "0";
+        }
     }
+
 }
