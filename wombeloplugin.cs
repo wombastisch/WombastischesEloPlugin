@@ -13,29 +13,44 @@ using Newtonsoft.Json;
 
 namespace WombastischesEloPlugin
 {
+    public enum DebugLevel
+    {
+        None,
+        Light,
+        Full
+    }
+
     public class WombastischesEloPlugin : BasePlugin
     {
         public override string ModuleName => "WombastischesEloPlugin";
         public override string ModuleVersion => "1.0.3";
-        public override string ModuleAuthor => "wombat.";  
-        public override string ModuleDescription => "!faceit command displays Faceit Elo for all players on the server";
-        
-        private PluginConfig Config { get; set; } = new PluginConfig();
+        public override string ModuleAuthor => "wombat.";
+        public override string ModuleDescription => "!faceit and !stats commands display Faceit Elo and 90-day stats for players";
+
+        public PluginConfig Config { get; set; } = new PluginConfig();
         private const string ConfigFileName = "config.json";
-        private void DebugLog(string message)
+
+        public void DebugLog(string message, DebugLevel level = DebugLevel.Light)
         {
-            if (Config.DebugMode)
+            if (Config.DebugLevel == DebugLevel.None) return;
+
+            if ((int)level <= (int)Config.DebugLevel)
             {
                 Console.WriteLine($"[{ModuleName}] {DateTime.Now:HH:mm:ss.fff} {message}");
             }
         }
 
+        private StatsHandler? _statsHandler;
+
         public override void Load(bool hotReload)
         {
             LoadConfig();
             AddCommand("css_faceit", "Show Faceit ELO", OnFaceitCommand);
-            DebugLog("Plugin loaded successfully");
+            AddCommand("css_stats", "Show player 90-day stats", OnStatsCommand);
+            DebugLog("Plugin loaded successfully", DebugLevel.Light);
             ValidateApiKey();
+
+            _statsHandler = new StatsHandler(this);  
         }
 
         private void LoadConfig()
@@ -46,22 +61,22 @@ namespace WombastischesEloPlugin
             try
             {
                 Directory.CreateDirectory(configDir);
-                
+
                 if (!File.Exists(configPath))
                 {
                     File.WriteAllText(configPath, JsonConvert.SerializeObject(Config, Formatting.Indented));
-                    DebugLog($"Created new config file at: {configPath}");
+                    DebugLog($"Created new config file at: {configPath}", DebugLevel.Light);
                     NotifyServerAdmin("New config file created! Please configure your Faceit API key.", true);
                 }
                 else
                 {
-                    var settings = new JsonSerializerSettings {
+                    var settings = new JsonSerializerSettings
+                    {
                         NullValueHandling = NullValueHandling.Ignore,
                         MissingMemberHandling = MissingMemberHandling.Ignore
                     };
-                    Config = JsonConvert.DeserializeObject<PluginConfig>(File.ReadAllText(configPath), settings)! 
-                        ?? new PluginConfig();
-                    DebugLog($"Loaded config from: {configPath}");
+                    Config = JsonConvert.DeserializeObject<PluginConfig>(File.ReadAllText(configPath), settings) ?? new PluginConfig();
+                    DebugLog($"Loaded config from: {configPath}", DebugLevel.Light);
                 }
             }
             catch (Exception ex)
@@ -80,11 +95,6 @@ namespace WombastischesEloPlugin
                 NotifyServerAdmin("CRITICAL ERROR: Faceit API key is missing in config!", true);
                 return;
             }
-
-            if (Config.FaceitApiKey == "faceit-api-key-here")
-            {
-                NotifyServerAdmin("WARNING: Default Faceit API key detected!", true);
-            }
         }
 
         private void NotifyServerAdmin(string message, bool isError)
@@ -92,9 +102,9 @@ namespace WombastischesEloPlugin
             var formattedMessage = $"[{ModuleName}] {(isError ? "ERROR: " : "")}{message}";
             Console.WriteLine(formattedMessage);
 
-            foreach (var admin in Utilities.GetPlayers().Where(p => 
-                p != null && 
-                p.IsValid && 
+            foreach (var admin in Utilities.GetPlayers().Where(p =>
+                p != null &&
+                p.IsValid &&
                 AdminManager.PlayerHasPermissions(p, "@css/admin")))
             {
                 admin.PrintToChat($" {ChatColors.Red}{message}");
@@ -104,14 +114,15 @@ namespace WombastischesEloPlugin
         private string GetConfigDirectory()
         {
             return Path.Combine(
-                Server.GameDirectory, "csgo", "addons", "counterstrikesharp", 
-                "configs", "plugins", ModuleName              
+                Server.GameDirectory, "csgo", "addons", "counterstrikesharp",
+                "configs", "plugins", ModuleName
             );
         }
+
         private async Task<int> FetchElo(string steamId)
         {
             if (!ValidateApiKeySilent()) return -1;
-            
+
             try
             {
                 using var client = new HttpClient();
@@ -119,28 +130,43 @@ namespace WombastischesEloPlugin
                 client.Timeout = TimeSpan.FromSeconds(5);
 
                 var url = $"https://open.faceit.com/data/v4/players?game=cs2&game_player_id={steamId}";
-                DebugLog($"API request to: {url}");
+                DebugLogIfFull($"FetchElo: API request to: {url}");
 
                 using var response = await client.GetAsync(url).ConfigureAwait(false);
-        
-                await Server.NextFrameAsync(() => { }); 
-        
+
+                await Server.NextFrameAsync(() => { });
+
+                string content = await response.Content.ReadAsStringAsync();
+                DebugLogIfFull($"FetchElo: API Response Code: {response.StatusCode}");
+                DebugLogIfFull($"FetchElo: API Response Content: {content}");
+
                 if (!response.IsSuccessStatusCode)
                 {
-                    DebugLog($"API error: {response.StatusCode}");
+                    DebugLogIfFull($"FetchElo: API error {response.StatusCode}. Full response: {content}");
                     return -1;
                 }
 
-                var content = await response.Content.ReadAsStringAsync();
                 var data = JsonConvert.DeserializeObject<FaceitResponse>(content);
-                return data?.games?.cs2?.faceit_elo ?? -1;
+                int elo = data?.games?.cs2?.faceit_elo ?? -1;
+                DebugLogIfFull($"FetchElo: Fetched Elo = {elo}");
+
+                return elo;
             }
             catch (Exception ex)
             {
-                await Server.NextFrameAsync(() => DebugLog($"API exception: {ex.Message}"));
+                await Server.NextFrameAsync(() => DebugLogIfFull($"FetchElo: API exception: {ex.Message}"));
                 return -1;
             }
         }
+
+        private void DebugLogIfFull(string message)
+        {
+            if (Config.DebugLevel == DebugLevel.Full)
+            {
+                DebugLog(message, DebugLevel.Full);
+            }
+        }
+
         public class FaceitResponse
         {
             public Games? games { get; set; }
@@ -153,6 +179,7 @@ namespace WombastischesEloPlugin
                 }
             }
         }
+
         private void OnFaceitCommand(CCSPlayerController? player, CommandInfo command)
         {
             if (player == null || !player.IsValid) return;
@@ -163,18 +190,32 @@ namespace WombastischesEloPlugin
                 return;
             }
 
-            DebugLog($"Faceit command invoked by {player.PlayerName}");
+            DebugLog($"Faceit command invoked by {player.PlayerName}", DebugLevel.Light);
             Server.NextFrame(() => HandleFaceitCommand(player));
+        }
+
+        private async void OnStatsCommand(CCSPlayerController? player, CommandInfo command)
+        {
+            if (player == null || !player.IsValid) return;
+            if (!IsPlayerAdmin(player, Config.RequiredPermissions.ToArray()))
+            {
+                SendPlayerNotAdminMessage(player);
+                return;
+            }
+
+            DebugLog($"Stats command invoked by {player.PlayerName}", DebugLevel.Light);
+            if (_statsHandler != null)
+            {
+                await _statsHandler.HandleStatsCommand(player, command);
+            }
         }
 
         private bool IsPlayerAdmin(CCSPlayerController? player, params string[] permissions)
         {
             if (player == null || !player.IsValid) return false;
-            
             if (permissions.All(string.IsNullOrEmpty)) return true;
-
-            return permissions.Any(p => 
-                !string.IsNullOrEmpty(p) && 
+            return permissions.Any(p =>
+                !string.IsNullOrEmpty(p) &&
                 AdminManager.PlayerHasPermissions(player, p)
             );
         }
@@ -186,7 +227,7 @@ namespace WombastischesEloPlugin
 
         private void HandleFaceitCommand(CCSPlayerController player)
         {
-            DebugLog("Starting Faceit command processing");
+            DebugLog("Starting Faceit command processing", DebugLevel.Light);
 
             if (!ValidateApiKeySilent())
             {
@@ -252,16 +293,9 @@ namespace WombastischesEloPlugin
             };
         }
 
-
         private bool ValidateApiKeySilent()
         {
-            if (string.IsNullOrEmpty(Config.FaceitApiKey) || 
-                Config.FaceitApiKey == "faceit-api-key-here")
-            {
-                Console.WriteLine($"[{ModuleName}] CRITICAL: Invalid API key configuration!");
-                return false;
-            }
-            return true;
+            return !string.IsNullOrEmpty(Config.FaceitApiKey);
         }
 
         private List<PlayerData> GetPlayerSteamIdsSafe(List<CCSPlayerController> players)
@@ -292,6 +326,7 @@ namespace WombastischesEloPlugin
 
             return (await Task.WhenAll(tasks)).ToList();
         }
+
         private string GetEloColor(int elo)
         {
             if (elo == -1) return ChatColors.LightPurple.ToString();
@@ -313,29 +348,164 @@ namespace WombastischesEloPlugin
 
         private record PlayerData(string PlayerName, string SteamId);
         private record EloResult(string PlayerName, string Elo, string Color);
-        
+
         public class PluginConfig
         {
-            [JsonProperty("DebugMode (Set to false to disable DebugMode)")]
-            public bool DebugMode { get; set; } = true;
-
-            [JsonProperty("FaceitApiKey (Get Faceit API key: https://developer.faceit.com)")]
-            public string FaceitApiKey { get; set; } = "faceit-api-key-here";
-
-            [JsonProperty("RequiredPermissions (Leave empty if everyone on the server should be able to use !faceit command)")]
+            public DebugLevel DebugLevel { get; set; } = DebugLevel.Light;
+            public string FaceitApiKey { get; set; } = "";
             public List<string> RequiredPermissions { get; set; } = new List<string> { "@custom/faceit", "@css/admin" };
-
-            [JsonProperty("OutputVisibility (Options: 'self', 'admin', 'all')")]
             public string OutputVisibility { get; set; } = "self";
         }
-
     }
-    public static class StringExtensions
+
+    public class StatsHandler : IDisposable
     {
-        public static string Truncate(this string value, int maxLength)
+        private readonly HttpClient _httpClient;
+        private readonly WombastischesEloPlugin _plugin;
+
+        public StatsHandler(WombastischesEloPlugin plugin)
         {
-            if (string.IsNullOrEmpty(value)) return value;
-            return value.Length <= maxLength ? value : value[..maxLength] + "...";
+            _plugin = plugin;
+            _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            
+            if (!string.IsNullOrEmpty(_plugin.Config.FaceitApiKey))
+            {
+                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_plugin.Config.FaceitApiKey}");
+            }
+            else
+            {
+                _plugin.DebugLog("WARNING: Faceit API key not configured - stats will not work!", DebugLevel.Light);
+            }
         }
+
+        public async Task HandleStatsCommand(CCSPlayerController? player, CommandInfo command)
+        {
+            if (player == null || !player.IsValid) return;
+
+
+            if (string.IsNullOrEmpty(_plugin.Config.FaceitApiKey))
+            {
+                Server.NextFrame(() => player.PrintToChat($"{ChatColors.Red}Faceit API key not configured! Check server console."));
+                _plugin.DebugLog("Stats command blocked - no Faceit API key configured", DebugLevel.Light);
+                return;
+            }
+
+            try
+            {
+                var targetName = command.ArgByIndex(1);
+                var targetPlayer = Utilities.GetPlayers()
+                    .FirstOrDefault(p => p.IsValid &&
+                                           !p.IsBot &&
+                                           p.PlayerName.Equals(targetName, StringComparison.OrdinalIgnoreCase));
+
+                if (targetPlayer == null)
+                {
+                    Server.NextFrame(() => player.PrintToChat($"{ChatColors.Red}Player not found!"));
+                    return;
+                }
+
+                _plugin.DebugLog($"[StatsHandler] Fetching stats for SteamID: {targetPlayer.SteamID}", DebugLevel.Light);
+                var stats = await FetchPlayerStats(targetPlayer.SteamID.ToString());
+                Server.NextFrame(() =>
+                {
+                    if (player.IsValid && stats != null)
+                    {
+                        player.PrintToChat($" {ChatColors.LightRed}» {ChatColors.Orange}{targetPlayer.PlayerName}'s 90-Day Stats");
+                        player.PrintToChat($" {ChatColors.Default}Matches: {ChatColors.Green}{stats.RecentMatches}");
+                        player.PrintToChat($" {ChatColors.Default}Winrate: {ChatColors.Green}{stats.WinRate}%");
+                        player.PrintToChat($" {ChatColors.Default}K/D: {ChatColors.Green}{stats.AverageKd:F2}");
+                        player.PrintToChat($" {ChatColors.Default}K/R: {ChatColors.Green}{stats.AverageKills:F1}");
+                        player.PrintToChat($" {ChatColors.Default}HS%: {ChatColors.Green}{stats.HeadshotPercent}%");
+                    }
+                    else
+                    {
+                        player.PrintToChat($" {ChatColors.Red}Error fetching stats! Check server console.");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _plugin.DebugLog($"Stats Error: {ex}", DebugLevel.Light);
+                Server.NextFrame(() => player.PrintToChat($"{ChatColors.Red}Error fetching stats!"));
+            }
+        }
+        
+        private async Task<PlayerStats?> FetchPlayerStats(string steamId)
+        {
+            if (string.IsNullOrEmpty(_plugin.Config.FaceitApiKey))
+            {
+                _plugin.DebugLog("Cannot fetch stats - no Faceit API key configured", DebugLevel.Light);
+                return null;
+            }
+
+            try
+            {
+                var gameId = "cs2";
+                var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var ninetyDaysAgo = DateTimeOffset.UtcNow.AddDays(-90).ToUnixTimeMilliseconds();
+
+                var playerIdUrl = $"https://open.faceit.com/data/v4/players?game_player_id={steamId}&game={gameId}";
+                _plugin.DebugLog($"Fetching Faceit Player ID from: {playerIdUrl}", DebugLevel.Light);
+
+                var playerIdResponse = await _httpClient.GetAsync(playerIdUrl);
+                playerIdResponse.EnsureSuccessStatusCode();
+
+                var playerIdContent = await playerIdResponse.Content.ReadAsStringAsync();
+                dynamic? playerData = JsonConvert.DeserializeObject(playerIdContent);
+                string? playerId = playerData?.player_id;
+
+                if (string.IsNullOrEmpty(playerId))
+                {
+                    _plugin.DebugLog("Could not find Faceit Player ID", DebugLevel.Light);
+                    return null;
+                }
+
+                var statsUrl = $"https://open.faceit.com/data/v4/players/{playerId}/games/{gameId}/stats?from={ninetyDaysAgo}&to={now}&limit=100";
+                _plugin.DebugLog($"Fetching stats from: {statsUrl}", DebugLevel.Light);
+
+                var statsResponse = await _httpClient.GetAsync(statsUrl);
+                statsResponse.EnsureSuccessStatusCode();
+
+                var statsContent = await statsResponse.Content.ReadAsStringAsync();
+                var statsParsed = JsonConvert.DeserializeObject<PlayerStatsResponse>(statsContent);
+
+                if (statsParsed?.PlayerStats == null)
+                {
+                    _plugin.DebugLog("Could not load PlayerStats", DebugLevel.Light);
+                    return null;
+                }
+
+                return statsParsed.PlayerStats;
+            }
+            catch (HttpRequestException ex)
+            {
+                _plugin.DebugLog($"HTTP Error fetching stats: {ex.Message}", DebugLevel.Light);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _plugin.DebugLog($"Unexpected error: {ex}", DebugLevel.Light);
+                return null;
+            }
+        }
+
+        public void Dispose()
+        {
+            _httpClient?.Dispose();
+        }
+    }
+
+    public class PlayerStatsResponse
+    {
+        public PlayerStats PlayerStats { get; set; } = new PlayerStats();
+    }
+
+    public class PlayerStats
+    {
+        public int RecentMatches { get; set; }
+        public double WinRate { get; set; }
+        public double AverageKd { get; set; }
+        public double AverageKills { get; set; }
+        public double HeadshotPercent { get; set; }
     }
 }
