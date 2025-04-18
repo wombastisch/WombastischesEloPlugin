@@ -17,7 +17,7 @@ namespace WombastischesEloPlugin
     {
         public override string ModuleName => "WombastischesEloPlugin";
         public override string ModuleVersion => "1.1.0";
-        public override string ModuleAuthor => "wombat.";  
+        public override string ModuleAuthor => "wombastisch";  
         public override string ModuleDescription => "!faceit command displays Faceit Elo for all players or detailed stats for a specific player";
         
         private PluginConfig Config { get; set; } = new PluginConfig();
@@ -134,7 +134,6 @@ namespace WombastischesEloPlugin
 
                 var content = await response.Content.ReadAsStringAsync();
                 
-                // NEU: Debug-Log der kompletten Antwort
                 DebugLog($"FetchElo API response: {content}");
                 
                 var data = JsonConvert.DeserializeObject<FaceitResponse>(content);
@@ -210,7 +209,6 @@ namespace WombastischesEloPlugin
 
                 var content = await response.Content.ReadAsStringAsync();
                 
-                // NEU: Debug-Log der kompletten Antwort
                 DebugLog($"FetchPlayerStats API response: {content}");
                 
                 return JsonConvert.DeserializeObject<FaceitStatsResponse>(content);
@@ -247,7 +245,6 @@ namespace WombastischesEloPlugin
 
                 var content = await response.Content.ReadAsStringAsync();
                 
-                // NEU: Debug-Log der kompletten Antwort
                 DebugLog($"FetchPlayerMatchStats API response: {content}");
                 
                 return JsonConvert.DeserializeObject<FaceitMatchStatsResponse>(content);
@@ -272,7 +269,6 @@ namespace WombastischesEloPlugin
             }
         }
         
-        // Neue Klasse für die Faceit Stats API-Antwort
         public class FaceitStatsResponse
         {
             public string player_id { get; set; } = string.Empty;
@@ -307,7 +303,6 @@ namespace WombastischesEloPlugin
             }
         }
         
-        // Neue Klasse für die Faceit Match-Statistiken
         public class FaceitMatchStatsResponse
         {
             public List<MatchStatsItem> items { get; set; } = new List<MatchStatsItem>();
@@ -341,7 +336,6 @@ namespace WombastischesEloPlugin
 
             DebugLog($"Faceit command invoked by {player.PlayerName}");
             
-            // Überprüfe, ob ein Spielername als Parameter übergeben wurde
             if (command.ArgCount >= 2)
             {
                 string targetPlayerName = command.ArgByIndex(1);
@@ -350,7 +344,6 @@ namespace WombastischesEloPlugin
             }
             else
             {
-                // Standardverhalten beibehalten
                 Server.NextFrame(() => HandleFaceitCommand(player));
             }
         }
@@ -424,8 +417,7 @@ namespace WombastischesEloPlugin
                 }
             });
         }
-        
-        // Neue Methode zur Verarbeitung des erweiterten Befehls
+
         private void HandleFaceitPlayerCommand(CCSPlayerController sender, string targetPlayerName)
         {
             DebugLog($"Processing player specific faceit command for player: {targetPlayerName}");
@@ -436,7 +428,6 @@ namespace WombastischesEloPlugin
                 return;
             }
 
-            // Suche nach dem Spieler auf dem Server
             CCSPlayerController? targetPlayer = FindPlayerByName(targetPlayerName);
             
             if (targetPlayer == null)
@@ -452,7 +443,6 @@ namespace WombastischesEloPlugin
             {
                 try
                 {
-                    // Zuerst die Player ID von Faceit holen
                     string faceitPlayerId = await GetFaceitPlayerId(steamId);
                     if (string.IsNullOrEmpty(faceitPlayerId))
                     {
@@ -462,7 +452,6 @@ namespace WombastischesEloPlugin
                         return;
                     }
 
-                    // Parallel die verschiedenen Statistiken abrufen
                     var tasks = new Task[]
                     {
                         Task.Run(async () => await FetchElo(steamId)),
@@ -472,7 +461,6 @@ namespace WombastischesEloPlugin
 
                     await Task.WhenAll(tasks);
 
-                    // Ergebnisse extrahieren
                     int elo = (int)((Task<int>)tasks[0]).Result;
                     var stats = ((Task<FaceitStatsResponse?>)tasks[1]).Result;
                     var matchStats = ((Task<FaceitMatchStatsResponse?>)tasks[2]).Result;
@@ -481,12 +469,10 @@ namespace WombastischesEloPlugin
                     {
                         if (!sender.IsValid) return;
 
-                        // Ausgabe der Ergebnisse
                         var targetPlayers = GetTargetPlayersForOutput(sender);
                         
                         foreach (var target in targetPlayers)
                         {
-                            // Grundlegende Statistiken anzeigen
                             target.PrintToChat($" {ChatColors.Red}### FACEIT STATS FOR {targetPlayer.PlayerName} ###{ChatColors.Default}");
                             target.PrintToChat($" {ChatColors.Green}Elo: {GetEloColor(elo)}{(elo == -1 ? "N/A" : elo.ToString())}{ChatColors.Default}");
                             
@@ -503,7 +489,6 @@ namespace WombastischesEloPlugin
                                 target.PrintToChat($" {ChatColors.Green}HS%: {ChatColors.Default}{stats.lifetime?.HeadshotPercentage ?? "N/A"}%");
                                 target.PrintToChat($" {ChatColors.Green}ADR: {ChatColors.Default}{stats.lifetime?.ltADR ?? "N/A"}");
                                 
-                                // Formatierte Ausgabe der letzten Ergebnisse
                                 if (stats.lifetime?.RecentResults != null && stats.lifetime.RecentResults.Any())
                                 {
                                     string results = string.Join("", stats.lifetime.RecentResults.Select(r => 
@@ -513,10 +498,8 @@ namespace WombastischesEloPlugin
                                 }
                             }
                             
-                            // Statistiken der letzten 30 Matches anzeigen
                             if (matchStats != null && matchStats.items.Any())
                             {
-                                // Berechne Durchschnittswerte der letzten 30 Matches
                                 var matches = matchStats.items.Select(i => i.stats).ToList();
                                 
                                 double avgKD = matches.Average(m => double.TryParse(m.KdRatio, out var kd) ? kd : 0);
@@ -547,7 +530,6 @@ namespace WombastischesEloPlugin
             });
         }
         
-        // Hilfsmethode zum Suchen eines Spielers anhand des Namens
         private CCSPlayerController? FindPlayerByName(string name)
         {
             return Utilities.GetPlayers()
@@ -635,7 +617,7 @@ namespace WombastischesEloPlugin
         public class PluginConfig
         {
             [JsonProperty("DebugMode (Set to false to disable DebugMode)")]
-            public bool DebugMode { get; set; } = true;
+            public bool DebugMode { get; set; } = false;
 
             [JsonProperty("FaceitApiKey (Get Faceit API key: https://developer.faceit.com)")]
             public string FaceitApiKey { get; set; } = "faceit-api-key-here";

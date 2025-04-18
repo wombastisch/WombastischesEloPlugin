@@ -2,21 +2,22 @@
 **CounterStrikeSharp plugin to display Faceit Elo directly in-game!**  
 
 ## 📌 Requirements
-For the plugin to work, the following extensions are required:
+For the plugin to work, the following addons are required:
 - **[MetaMod](https://www.sourcemm.net/)** – A modding platform for CS2 servers
 - **[CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp)** – Enables C# plugins for CS2
 
-Make sure these extensions are installed before proceeding with the plugin installation!
+Make sure these addons are up2date & installed correctly before proceeding with the plugin installation!
 
 ---
 
 ## 🚀 Features  
-✅ Retrieve a player's Faceit Elo using their SteamID  
+✅ Retrieve Elo of all connected players on the Server
+✅ Retrieve a player's Faceit Stats using their Nickname  
 ✅ Direct integration with Counter-Strike 2 via Counter-StrikeSharp  
 ✅ Optimized API requests for fast responses  
 ✅ Debug mode for detailed error analysis  
 ✅ Custom permission group `@custom/faceit` for access control  
-✅ Configurable visibility of Faceit Elo output (`self`, `admin`, or `all`)  
+✅ Configurable visibility of Output (`self`, `admin`, or `all`)  
 
 ---
 
@@ -42,7 +43,7 @@ csgo/addons/counterstrikesharp/configs/plugins/WombastischesEloPlugin/config.jso
 Example configuration:
 ```json
 {
-  "DebugMode": true,
+  "DebugMode": false,
   "FaceitApiKey": "faceit-api-key-here",
   "RequiredPermissions": ["@custom/faceit", "@css/admin"],
   "OutputVisibility": "self"
