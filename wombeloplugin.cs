@@ -16,9 +16,9 @@ namespace WombastischesEloPlugin
     public class WombastischesEloPlugin : BasePlugin
     {
         public override string ModuleName => "WombastischesEloPlugin";
-        public override string ModuleVersion => "1.0.3";
+        public override string ModuleVersion => "1.1.0";
         public override string ModuleAuthor => "wombat.";  
-        public override string ModuleDescription => "!faceit command displays Faceit Elo for all players on the server";
+        public override string ModuleDescription => "!faceit command displays Faceit Elo for all players or detailed stats for a specific player";
         
         private PluginConfig Config { get; set; } = new PluginConfig();
         private const string ConfigFileName = "config.json";
@@ -108,6 +108,7 @@ namespace WombastischesEloPlugin
                 "configs", "plugins", ModuleName              
             );
         }
+        
         private async Task<int> FetchElo(string steamId)
         {
             if (!ValidateApiKeySilent()) return -1;
@@ -132,6 +133,10 @@ namespace WombastischesEloPlugin
                 }
 
                 var content = await response.Content.ReadAsStringAsync();
+                
+                // NEU: Debug-Log der kompletten Antwort
+                DebugLog($"FetchElo API response: {content}");
+                
                 var data = JsonConvert.DeserializeObject<FaceitResponse>(content);
                 return data?.games?.cs2?.faceit_elo ?? -1;
             }
@@ -141,6 +146,119 @@ namespace WombastischesEloPlugin
                 return -1;
             }
         }
+
+        private async Task<string> GetFaceitPlayerId(string steamId)
+        {
+            if (!ValidateApiKeySilent()) return string.Empty;
+            
+            try
+            {
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Config.FaceitApiKey}");
+                client.Timeout = TimeSpan.FromSeconds(5);
+
+                var url = $"https://open.faceit.com/data/v4/players?game=cs2&game_player_id={steamId}";
+                DebugLog($"API request to get player ID: {url}");
+
+                using var response = await client.GetAsync(url).ConfigureAwait(false);
+                
+                await Server.NextFrameAsync(() => { }); 
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    DebugLog($"API error: {response.StatusCode}");
+                    return string.Empty;
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                
+                // NEU: Debug-Log der kompletten Antwort
+                DebugLog($"GetFaceitPlayerId API response: {content}");
+                
+                dynamic? data = JsonConvert.DeserializeObject(content);
+                return data?.player_id?.ToString() ?? string.Empty;
+            }
+            catch (Exception ex)
+            {
+                await Server.NextFrameAsync(() => DebugLog($"API exception: {ex.Message}"));
+                return string.Empty;
+            }
+        }
+
+        private async Task<FaceitStatsResponse?> FetchPlayerStats(string faceitPlayerId)
+        {
+            if (!ValidateApiKeySilent() || string.IsNullOrEmpty(faceitPlayerId)) return null;
+            
+            try
+            {
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Config.FaceitApiKey}");
+                client.Timeout = TimeSpan.FromSeconds(5);
+
+                var url = $"https://open.faceit.com/data/v4/players/{faceitPlayerId}/stats/cs2";
+                DebugLog($"API request for player stats: {url}");
+
+                using var response = await client.GetAsync(url).ConfigureAwait(false);
+                
+                await Server.NextFrameAsync(() => { }); 
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    DebugLog($"API error: {response.StatusCode}");
+                    return null;
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                
+                // NEU: Debug-Log der kompletten Antwort
+                DebugLog($"FetchPlayerStats API response: {content}");
+                
+                return JsonConvert.DeserializeObject<FaceitStatsResponse>(content);
+            }
+            catch (Exception ex)
+            {
+                await Server.NextFrameAsync(() => DebugLog($"API exception: {ex.Message}"));
+                return null;
+            }
+        }
+
+        private async Task<FaceitMatchStatsResponse?> FetchPlayerMatchStats(string faceitPlayerId, int limit = 30)
+        {
+            if (!ValidateApiKeySilent() || string.IsNullOrEmpty(faceitPlayerId)) return null;
+            
+            try
+            {
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {Config.FaceitApiKey}");
+                client.Timeout = TimeSpan.FromSeconds(10);
+
+                var url = $"https://open.faceit.com/data/v4/players/{faceitPlayerId}/games/cs2/stats?limit={limit}";
+                DebugLog($"API request for player match stats: {url}");
+
+                using var response = await client.GetAsync(url).ConfigureAwait(false);
+                
+                await Server.NextFrameAsync(() => { }); 
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    DebugLog($"API error: {response.StatusCode}");
+                    return null;
+                }
+
+                var content = await response.Content.ReadAsStringAsync();
+                
+                // NEU: Debug-Log der kompletten Antwort
+                DebugLog($"FetchPlayerMatchStats API response: {content}");
+                
+                return JsonConvert.DeserializeObject<FaceitMatchStatsResponse>(content);
+            }
+            catch (Exception ex)
+            {
+                await Server.NextFrameAsync(() => DebugLog($"API exception: {ex.Message}"));
+                return null;
+            }
+        }
+        
         public class FaceitResponse
         {
             public Games? games { get; set; }
@@ -153,6 +271,64 @@ namespace WombastischesEloPlugin
                 }
             }
         }
+        
+        // Neue Klasse für die Faceit Stats API-Antwort
+        public class FaceitStatsResponse
+        {
+            public string player_id { get; set; } = string.Empty;
+            public string game_id { get; set; } = string.Empty;
+            public Lifetime lifetime { get; set; } = new Lifetime();
+
+            public class Lifetime
+            {
+                [JsonProperty("Average K/D Ratio")]
+                public string AverageKdRatio { get; set; } = "0";
+
+                [JsonProperty("K/D Ratio")]
+                public string KdRatio { get; set; } = "0";
+
+                [JsonProperty("Total Matches")]
+                public string CS2Matches { get; set; } = "0";
+
+                [JsonProperty("Matches")]
+                public string AllMatches { get; set; } = "0";
+
+                [JsonProperty("Win Rate %")]
+                public string WinRate { get; set; } = "0";
+            
+                [JsonProperty("Average Headshots %")]
+                public string HeadshotPercentage { get; set; } = "0";
+
+                [JsonProperty("ADR")]
+                public string ltADR { get; set; } = "0";
+
+                [JsonProperty("Recent Results")]
+                public List<string> RecentResults { get; set; } = new List<string>();
+            }
+        }
+        
+        // Neue Klasse für die Faceit Match-Statistiken
+        public class FaceitMatchStatsResponse
+        {
+            public List<MatchStatsItem> items { get; set; } = new List<MatchStatsItem>();
+
+            public class MatchStatsItem
+            {
+                public MatchStats stats { get; set; } = new MatchStats();
+
+                public class MatchStats
+                {
+                    [JsonProperty("K/D Ratio")]
+                    public string KdRatio { get; set; } = "0";
+                    public string Result { get; set; } = "0";
+
+                    [JsonProperty("Headshots %")]
+                    public string HeadshotPercentage { get; set; } = "0";
+                    public string ADR { get; set; } = "0";
+                }
+            }
+        }
+        
         private void OnFaceitCommand(CCSPlayerController? player, CommandInfo command)
         {
             if (player == null || !player.IsValid) return;
@@ -164,7 +340,19 @@ namespace WombastischesEloPlugin
             }
 
             DebugLog($"Faceit command invoked by {player.PlayerName}");
-            Server.NextFrame(() => HandleFaceitCommand(player));
+            
+            // Überprüfe, ob ein Spielername als Parameter übergeben wurde
+            if (command.ArgCount >= 2)
+            {
+                string targetPlayerName = command.ArgByIndex(1);
+                DebugLog($"Searching for player: {targetPlayerName}");
+                Server.NextFrame(() => HandleFaceitPlayerCommand(player, targetPlayerName));
+            }
+            else
+            {
+                // Standardverhalten beibehalten
+                Server.NextFrame(() => HandleFaceitCommand(player));
+            }
         }
 
         private bool IsPlayerAdmin(CCSPlayerController? player, params string[] permissions)
@@ -235,6 +423,136 @@ namespace WombastischesEloPlugin
                     Console.WriteLine($"[{ModuleName}] Error: {ex}");
                 }
             });
+        }
+        
+        // Neue Methode zur Verarbeitung des erweiterten Befehls
+        private void HandleFaceitPlayerCommand(CCSPlayerController sender, string targetPlayerName)
+        {
+            DebugLog($"Processing player specific faceit command for player: {targetPlayerName}");
+
+            if (!ValidateApiKeySilent())
+            {
+                sender.PrintToChat($" {ChatColors.Red}Plugin configuration error! Check server console.");
+                return;
+            }
+
+            // Suche nach dem Spieler auf dem Server
+            CCSPlayerController? targetPlayer = FindPlayerByName(targetPlayerName);
+            
+            if (targetPlayer == null)
+            {
+                sender.PrintToChat($" {ChatColors.Red}Player {targetPlayerName} not found on server.");
+                return;
+            }
+
+            string steamId = targetPlayer.SteamID.ToString();
+            DebugLog($"Found player {targetPlayer.PlayerName} with SteamID: {steamId}");
+
+            Server.NextFrame(async () =>
+            {
+                try
+                {
+                    // Zuerst die Player ID von Faceit holen
+                    string faceitPlayerId = await GetFaceitPlayerId(steamId);
+                    if (string.IsNullOrEmpty(faceitPlayerId))
+                    {
+                        await Server.NextFrameAsync(() => 
+                            sender.PrintToChat($" {ChatColors.Red}Could not find Faceit account for {targetPlayer.PlayerName}.")
+                        );
+                        return;
+                    }
+
+                    // Parallel die verschiedenen Statistiken abrufen
+                    var tasks = new Task[]
+                    {
+                        Task.Run(async () => await FetchElo(steamId)),
+                        Task.Run(async () => await FetchPlayerStats(faceitPlayerId)),
+                        Task.Run(async () => await FetchPlayerMatchStats(faceitPlayerId, 30))
+                    };
+
+                    await Task.WhenAll(tasks);
+
+                    // Ergebnisse extrahieren
+                    int elo = (int)((Task<int>)tasks[0]).Result;
+                    var stats = ((Task<FaceitStatsResponse?>)tasks[1]).Result;
+                    var matchStats = ((Task<FaceitMatchStatsResponse?>)tasks[2]).Result;
+
+                    await Server.NextFrameAsync(() =>
+                    {
+                        if (!sender.IsValid) return;
+
+                        // Ausgabe der Ergebnisse
+                        var targetPlayers = GetTargetPlayersForOutput(sender);
+                        
+                        foreach (var target in targetPlayers)
+                        {
+                            // Grundlegende Statistiken anzeigen
+                            target.PrintToChat($" {ChatColors.Red}### FACEIT STATS FOR {targetPlayer.PlayerName} ###{ChatColors.Default}");
+                            target.PrintToChat($" {ChatColors.Green}Elo: {GetEloColor(elo)}{(elo == -1 ? "N/A" : elo.ToString())}{ChatColors.Default}");
+                            
+                            if (stats != null)
+                            {
+                                int.TryParse(stats.lifetime?.AllMatches, out var allMatches);
+                                int.TryParse(stats.lifetime?.CS2Matches, out var cs2Matches);
+                                int csgoMatches = allMatches - cs2Matches;
+
+                                target.PrintToChat($" {ChatColors.Green}CSGO Matches: {ChatColors.Default}{(allMatches > 0 ? csgoMatches.ToString() : "N/A")}");
+                                target.PrintToChat($" {ChatColors.Green}CS2 Matches: {ChatColors.Default}{stats.lifetime?.CS2Matches ?? "N/A"}");
+                                target.PrintToChat($" {ChatColors.Green}Win Rate: {ChatColors.Default}{stats.lifetime?.WinRate ?? "N/A"}%");
+                                target.PrintToChat($" {ChatColors.Green}K/D: {ChatColors.Default}{stats.lifetime?.AverageKdRatio ?? "N/A"}");
+                                target.PrintToChat($" {ChatColors.Green}HS%: {ChatColors.Default}{stats.lifetime?.HeadshotPercentage ?? "N/A"}%");
+                                target.PrintToChat($" {ChatColors.Green}ADR: {ChatColors.Default}{stats.lifetime?.ltADR ?? "N/A"}");
+                                
+                                // Formatierte Ausgabe der letzten Ergebnisse
+                                if (stats.lifetime?.RecentResults != null && stats.lifetime.RecentResults.Any())
+                                {
+                                    string results = string.Join("", stats.lifetime.RecentResults.Select(r => 
+                                        r == "1" ? $"{ChatColors.Green}W" : $"{ChatColors.Red}L"
+                                    ));
+                                    target.PrintToChat($" {ChatColors.Green}Last Matches: {ChatColors.Default}{results}");
+                                }
+                            }
+                            
+                            // Statistiken der letzten 30 Matches anzeigen
+                            if (matchStats != null && matchStats.items.Any())
+                            {
+                                // Berechne Durchschnittswerte der letzten 30 Matches
+                                var matches = matchStats.items.Select(i => i.stats).ToList();
+                                
+                                double avgKD = matches.Average(m => double.TryParse(m.KdRatio, out var kd) ? kd : 0);
+                                double avgHS = matches.Average(m => double.TryParse(m.HeadshotPercentage, out var hs) ? hs : 0);
+                                double avgADR = matches.Average(m => double.TryParse(m.ADR, out var adr) ? adr : 0);
+                                int wins = matches.Count(m => m.Result == "1");
+                                
+                                target.PrintToChat($" {ChatColors.Yellow}### LAST 30 MATCHES ###{ChatColors.Default}");
+                                target.PrintToChat($" {ChatColors.Green}W/L: {ChatColors.Default}{wins}/{matches.Count - wins} ({(wins * 100.0 / matches.Count):F1}%)");
+                                target.PrintToChat($" {ChatColors.Green}K/D: {ChatColors.Default}{avgKD:F2}");
+                                target.PrintToChat($" {ChatColors.Green}HS%: {ChatColors.Default}{avgHS:F1}%");
+                                target.PrintToChat($" {ChatColors.Green}ADR: {ChatColors.Default}{avgADR:F1}");
+                            }
+                            else
+                            {
+                                target.PrintToChat($" {ChatColors.Red}Could not retrieve recent match statistics.");
+                            }
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{ModuleName}] Error: {ex}");
+                    await Server.NextFrameAsync(() => 
+                        sender.PrintToChat($" {ChatColors.Red}Error retrieving Faceit stats: {ex.Message}")
+                    );
+                }
+            });
+        }
+        
+        // Hilfsmethode zum Suchen eines Spielers anhand des Namens
+        private CCSPlayerController? FindPlayerByName(string name)
+        {
+            return Utilities.GetPlayers()
+                .FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && 
+                    (p.PlayerName?.Contains(name, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         private List<CCSPlayerController> GetTargetPlayersForOutput(CCSPlayerController sender)

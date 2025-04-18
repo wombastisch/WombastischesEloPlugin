@@ -1,0 +1,13 @@
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/bin/Debug/net8.0/WombastischesEloPlugin.deps.json
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/bin/Debug/net8.0/WombastischesEloPlugin.dll
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/bin/Debug/net8.0/WombastischesEloPlugin.pdb
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.csproj.AssemblyReference.cache
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.GeneratedMSBuildEditorConfig.editorconfig
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.AssemblyInfoInputs.cache
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.AssemblyInfo.cs
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.csproj.CoreCompileInputs.cache
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.sourcelink.json
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.dll
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/refint/WombastischesEloPlugin.dll
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/WombastischesEloPlugin.pdb
+/Users/wombastisch/Desktop/cs2plugins/WombastischesEloPlugin/WombastischesEloPlugin/obj/Debug/net8.0/ref/WombastischesEloPlugin.dll
