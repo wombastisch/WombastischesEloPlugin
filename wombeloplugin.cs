@@ -595,9 +595,12 @@ namespace WombastischesEloPlugin
         private string GetEloColor(int elo)
         {
             if (elo == -1) return ChatColors.LightPurple.ToString();
-            if (elo < 2000) return ChatColors.White.ToString();
-            if (elo <= 2750) return ChatColors.Blue.ToString();
-            return ChatColors.Red.ToString();
+            if (elo < 500) return ChatColors.Grey.ToString();
+            if (elo < 900) return ChatColors.Green.ToString();
+            if (elo < 1530) return ChatColors.Yellow.ToString();
+            if (elo < 2000) return ChatColors.LightRed.ToString();
+            if (elo <= 3000) return ChatColors.Red.ToString();
+            return ChatColors.Gold.ToString();
         }
 
         private void PrintTeamResults(CCSPlayerController player, string teamName, List<EloResult> results)
